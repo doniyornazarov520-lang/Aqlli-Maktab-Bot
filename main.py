@@ -439,17 +439,26 @@ def show_it_members(message):
 def info_command(message):
     if message.from_user.id != ADMIN_ID:
         return
-    try:
-        parts = message.text.strip().split()
-        if len(parts) < 2:
-            bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/info 8216291475`", parse_mode="Markdown")
-            return
+    
+    # Buyruqdan keyingi barcha belgilarni toza ajratib olamiz
+    raw_text = message.text.replace("/info", "").strip()
+    
+    # Agar bot username bilan yuborilgan bo'lsa (@botname bo'lsa)
+    if raw_text.startswith("@"):
+        parts = raw_text.split(maxsplit=1)
+        raw_text = parts[1] if len(parts) > 1 else ""
 
-        target_id = int(parts[1])
+    if not raw_text.isdigit():
+        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/info 8216291475`", parse_mode="Markdown")
+        return
+
+    target_id = int(raw_text)
+    
+    try:
         info = get_user_info(target_id)
         if info:
             name, grade, phone, username = info
-            username_str = f"@{username}" if username and username != "Mavjud emas" else "Mavjud emas"
+            username_str = f"@{username}" if (username and username != "Mavjud emas") else "Mavjud emas"
             msg = (
                 f"👤 **O'QUVCHI MA'LUMOTLARI:**\n\n"
                 f"📌 **Ism-Familiya:** {name}\n"
@@ -460,15 +469,16 @@ def info_command(message):
             )
             bot.send_message(message.chat.id, msg, parse_mode="Markdown")
         else:
-            bot.send_message(message.chat.id, "❌ Ushbu ID'ga ega foydalanuvchi topilmadi.")
-    except Exception:
-        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/info 8216291475`", parse_mode="Markdown")
+            bot.send_message(message.chat.id, f"❌ `{target_id}` ID'ga ega foydalanuvchi bazadan topilmadi.", parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Xatolik yuz berdi: `{e}`", parse_mode="Markdown")
 
 # 📩 Javob yuborish (/reply USER_ID Javob)
 @bot.message_handler(commands=["reply"])
 def reply_command(message):
     if message.from_user.id != ADMIN_ID:
         return
+    
     try:
         parts = message.text.strip().split(maxsplit=2)
         if len(parts) < 3:
@@ -480,8 +490,8 @@ def reply_command(message):
 
         bot.send_message(target_id, f"📩 **Maktab Adminidan javob:**\n\n{reply_msg}", parse_mode="Markdown")
         bot.send_message(message.chat.id, "✅ Javob yuborildi!")
-    except Exception:
-        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/reply 8216291475 Javobingiz`", parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Xatolik: `{e}`", parse_mode="Markdown")
 
 # --- MAIN RUN ---
 if __name__ == "__main__":
