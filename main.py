@@ -152,7 +152,7 @@ def start_cmd(message):
     else:
         msg = bot.send_message(
             message.chat.id,
-            "🏫 <b>'Aqliy Maktab' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
+            "🏫 <b>'297-Maktabning Aqlli' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
             parse_mode="HTML"
         )
         bot.register_next_step_handler(msg, process_name_step)
