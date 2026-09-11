@@ -1,0 +1,274 @@
+import os
+import sqlite3
+import threading
+import time
+from flask import Flask
+import telebot
+from telebot import types
+
+# --- ENVIRONMENT VARIABLES (Render'dan olinadi) ---
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))  # Sizning Telegram ID'ingiz
+
+bot = telebot.TeleBot(BOT_TOKEN)
+app = Flask(__name__)
+
+# --- DATABASE (SQLite) SOZLAMALARI ---
+def init_db():
+    conn = sqlite3.connect("school.db")
+    cursor = conn.cursor()
+
+    # O'quvchilar jadvali
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            full_name TEXT,
+            grade TEXT,
+            phone TEXT
+        )
+    """)
+
+    # To'garak arizalari jadvali
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS club_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            subject TEXT,
+            preferred_time TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Taklif va g'oyalar jadvali
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ideas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            idea_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Savollar jadvali
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            direction TEXT,
+            question_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# --- YORDAMCHI BAZA FUNKSIYALARI ---
+def save_user(user_id, full_name, grade, phone):
+    conn = sqlite3.connect("school.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO users (user_id, full_name, grade, phone) VALUES (?, ?, ?, ?)",
+        (user_id, full_name, grade, phone)
+    )
+    conn.commit()
+    conn.close()
+
+def is_user_registered(user_id):
+    conn = sqlite3.connect("school.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    res = cursor.fetchone()
+    conn.close()
+    return res is not None
+
+# --- RENDER WEB SERVER (Flask) ---
+@app.route("/")
+def home():
+    return "Aqliy Maktab Bot Is Running!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+# --- MENYULAR ---
+def main_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    btn1 = types.KeyboardButton("📚 To'garakka yozilish")
+    btn2 = types.KeyboardButton("💡 Maktab uchun taklif/g'oya")
+    btn3 = types.KeyboardButton("❓ Savol yuborish")
+    btn4 = types.KeyboardButton("🚀 IT-Klubga qo'shilish")
+    markup.add(btn1, btn2, btn3, btn4)
+    return markup
+
+# --- HANDLERLAR ---
+user_data = {}  # Registratsiya vaqtinchalik xotirasi
+
+@bot.message_handler(commands=["start"])
+def start_cmd(message):
+    user_id = message.from_user.id
+    if is_user_registered(user_id):
+        bot.send_message(
+            message.chat.id,
+            f"Salom, **{message.from_user.first_name}**! 🏫\n\n'Aqliy Maktab' botiga xush kelibsiz. Quyidagi menyudan kerakli bo'limni tanlang:",
+            parse_mode="Markdown",
+            reply_markup=main_menu()
+        )
+    else:
+        msg = bot.send_message(
+            message.chat.id,
+            "🏫 **'Aqliy Maktab' botiga xush kelibsiz!**\n\nRo'yxatdan o'tish uchun **Ism va Familiyangizni** kiriting:",
+            parse_mode="Markdown"
+        )
+        bot.register_next_step_handler(msg, process_name_step)
+
+def process_name_step(message):
+    user_id = message.from_user.id
+    user_data[user_id] = {'full_name': message.text.strip()}
+    msg = bot.send_message(message.chat.id, "Sinfingizni kiriting (Masalan: `9-A`):", parse_mode="Markdown")
+    bot.register_next_step_handler(msg, process_grade_step)
+
+def process_grade_step(message):
+    user_id = message.from_user.id
+    user_data[user_id]['grade'] = message.text.strip()
+    
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    btn_phone = types.KeyboardButton("📱 Telefon raqamni yuborish", request_contact=True)
+    markup.add(btn_phone)
+    
+    msg = bot.send_message(
+        message.chat.id,
+        "Telefon raqamingizni pastdagi tugma orqali yuboring:",
+        reply_markup=markup
+    )
+    bot.register_next_step_handler(msg, process_phone_step)
+
+def process_phone_step(message):
+    user_id = message.from_user.id
+    if message.contact:
+        phone = message.contact.phone_number
+    else:
+        phone = message.text.strip()
+
+    full_name = user_data[user_id]['full_name']
+    grade = user_data[user_id]['grade']
+
+    save_user(user_id, full_name, grade, phone)
+    del user_data[user_id]
+
+    bot.send_message(
+        message.chat.id,
+        "✅ **Muvaffaqiyatli ro'yxatdan o'tdingiz!**",
+        parse_mode="Markdown",
+        reply_markup=main_menu()
+    )
+
+# --- MENYU TUGMALARI ISHLOVI ---
+
+# 1. To'garakka yozilish
+@bot.message_handler(func=lambda msg: msg.text == "📚 To'garakka yozilish")
+def club_request(message):
+    msg = bot.send_message(
+        message.chat.id,
+        "Qaysi fan yoki soha bo'yicha to'garakka qatnashmoqchisiz? (Masalan: Matematika, Fizika, Ingliz tili):"
+    )
+    bot.register_next_step_handler(msg, process_club_subject)
+
+def process_club_subject(message):
+    subject = message.text.strip()
+    conn = sqlite3.connect("school.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO club_requests (user_id, subject, preferred_time) VALUES (?, ?, ?)",
+        (message.from_user.id, subject, "Belgilanmagan")
+    )
+    conn.commit()
+    conn.close()
+
+    bot.send_message(
+        message.chat.id,
+        f"✅ **Arizangiz qabul qilindi!**\n\n`{subject}` bo'yicha etarli o'quvchilar yig'ilgach, sizga xabar beramiz va ustoz biriktiriladi.",
+        parse_mode="Markdown"
+    )
+    
+    # Admin (IT Lider)ga bildirishnoma
+    if ADMIN_ID != 0:
+        bot.send_message(ADMIN_ID, f"📥 **Yangi to'garak arizasi:**\nFan: {subject}\nUser ID: {message.from_user.id}")
+
+# 2. Maktab uchun taklif/g'oya
+@bot.message_handler(func=lambda msg: msg.text == "💡 Maktab uchun taklif/g'oya")
+def idea_request(message):
+    msg = bot.send_message(
+        message.chat.id,
+        "Maktabimizni yanada rivojlantirish bo'yicha o'z g'oya yoki taklifingizni batafsil yozib qoldiring:"
+    )
+    bot.register_next_step_handler(msg, process_idea)
+
+def process_idea(message):
+    idea_text = message.text.strip()
+    conn = sqlite3.connect("school.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO ideas (user_id, idea_text) VALUES (?, ?)", (message.from_user.id, idea_text))
+    conn.commit()
+    conn.close()
+
+    bot.send_message(message.chat.id, "💡 **Ajoyib taklif uchun rahmat!** G'oyangiz ko'rib chiqiladi va maktab liderlari bilan muhokama qilinadi.")
+    
+    if ADMIN_ID != 0:
+        bot.send_message(ADMIN_ID, f"💡 **Yangi taklif tushdi:**\n\n{idea_text}")
+
+# 3. Savol yuborish
+@bot.message_handler(func=lambda msg: msg.text == "❓ Savol yuborish")
+def question_request(message):
+    msg = bot.send_message(message.chat.id, "O'zingizni qiziqtirgan savolni yozing. Adminlar va fan mutaxassislari sizga javob berishadi:")
+    bot.register_next_step_handler(msg, process_question)
+
+def process_question(message):
+    q_text = message.text.strip()
+    conn = sqlite3.connect("school.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO questions (user_id, direction, question_text) VALUES (?, ?, ?)", (message.from_user.id, "Umumiy", q_text))
+    conn.commit()
+    conn.close()
+
+    bot.send_message(message.chat.id, "❓ **Savolingiz yuborildi.** Tezbora javob olasiz!")
+    
+    if ADMIN_ID != 0:
+        bot.send_message(ADMIN_ID, f"❓ **Yangi savol:**\n{q_text}\n\nJavob berish uchun: `/reply {message.from_user.id} Javobingiz`")
+
+# 4. IT-Klubga qo'shilish
+@bot.message_handler(func=lambda msg: msg.text == "🚀 IT-Klubga qo'shilish")
+def it_club_request(message):
+    bot.send_message(
+        message.chat.id,
+        "🚀 **IT-Klub va Liderlar jamoasi!**\n\nAgar sizda dasturlash, dizayn yoki IT sohasida qiziqish va tajribangiz bo'lsa, sizni jamoamizda kutamiz.\n\nIT Lider bilan bog'lanish va arizangiz avtomatik ro'yxatga olindi!",
+        parse_mode="Markdown"
+    )
+    if ADMIN_ID != 0:
+        bot.send_message(ADMIN_ID, f"🚀 **IT-Klubga yangi nomzod!** User ID: {message.from_user.id}")
+
+# --- ADMIN BUYRUQLARI ---
+@bot.message_handler(commands=["reply"])
+def reply_to_user(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        parts = message.text.split(" ", 2)
+        target_user_id = int(parts[1])
+        reply_msg = parts[2]
+        bot.send_message(target_user_id, f"📩 **Maktab Adminidan javob:**\n\n{reply_msg}", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "✅ Javob foydalanuvchiga yuborildi!")
+    except Exception as e:
+        bot.send_message(message.chat.id, "⚠️ Format: `/reply USER_ID Javob matni`", parse_mode="Markdown")
+
+# --- BOTNI ISHGA TUSHIRISH ---
+if __name__ == "__main__":
+    threading.Thread(target=run_flask, daemon=True).start()
+    print("Aqliy Maktab Bot ishga tushdi...")
+    while True:
+        try:
+            bot.polling(non_stop=True, interval=1, timeout=30)
+        except Exception as e:
+            time.sleep(5)
