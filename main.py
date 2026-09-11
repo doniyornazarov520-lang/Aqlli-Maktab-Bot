@@ -8,7 +8,7 @@ from telebot import types
 
 # --- ENVIRONMENT VARIABLES ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))  # Sizning Telegram ID'ingiz
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -18,7 +18,6 @@ def init_db():
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
 
-    # O'quvchilar
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -29,7 +28,6 @@ def init_db():
         )
     """)
 
-    # To'garaklar
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS club_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,7 +37,6 @@ def init_db():
         )
     """)
 
-    # Takliflar
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ideas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +46,6 @@ def init_db():
         )
     """)
 
-    # Savollar
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS questions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +55,6 @@ def init_db():
         )
     """)
 
-    # IT-Klub
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS it_club (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,9 +118,22 @@ def admin_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     btn1 = types.KeyboardButton("📊 Statistika")
     btn2 = types.KeyboardButton("📚 To'garaklar ro'yxati")
-    btn3 = types.KeyboardButton("🚀 IT-Klub a'zolari")
-    btn4 = types.KeyboardButton("⬅️ Asosiy menyu")
-    markup.add(btn1, btn2, btn3, btn4)
+    btn3 = types.KeyboardButton("👥 Barcha o'quvchilar")
+    btn4 = types.KeyboardButton("🚀 IT-Klub a'zolari")
+    btn5 = types.KeyboardButton("⬅️ Asosiy menyu")
+    markup.add(btn1, btn2, btn3, btn4, btn5)
+    return markup
+
+def subjects_inline_menu():
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    subjects = [
+        "📐 Matematika", "🇬🇧 Ingliz tili", 
+        "🔬 Fizika", "🧪 Kimyo", 
+        "💻 Dasturlash (IT)", "📖 Ona tili va Adabiyot",
+        "📜 Tarix", "🇷🇺 Rus tili"
+    ]
+    buttons = [types.InlineKeyboardButton(text=sub, callback_data=f"sub_{sub}") for sub in subjects]
+    markup.add(*buttons)
     return markup
 
 user_data = {}
@@ -192,40 +200,47 @@ def process_phone_step(message):
         reply_markup=main_menu()
     )
 
-# --- BO'LIMLAR ISHLOVI ---
+    # Adminga yangi ro'yxatdan o'tgan o'quvchi bildirishnomasi
+    if ADMIN_ID != 0:
+        bot.send_message(
+            ADMIN_ID,
+            f"👤 **Yangi o'quvchi ro'yxatdan o'tdi:**\n\n📌 **Ism:** {full_name}\n🏫 **Sinf:** {grade}\n📞 **Tel:** `{phone}`\n🆔 **ID:** `{user_id}`",
+            parse_mode="Markdown"
+        )
 
-# 1. To'garak
+# 1. To'garak (Inline tugmalar orqali tanlash)
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garakka yozilish")
 def club_request(message):
-    msg = bot.send_message(
+    bot.send_message(
         message.chat.id,
-        "Qaysi fan yoki soha bo'yicha to'garakka qatnashmoqchisiz? (Masalan: Matematika, Fizika, Ingliz tili):"
+        "Qaysi fan bo'yicha to'garakka qatnashmoqchisiz? Quyidagi ro'yxatdan tanlang:",
+        reply_markup=subjects_inline_menu()
     )
-    bot.register_next_step_handler(msg, process_club_subject)
 
-def process_club_subject(message):
-    subject = message.text.strip().title()
-    user = message.from_user
-    
+@bot.callback_query_handler(func=lambda call: call.data.startswith("sub_"))
+def callback_subject(call):
+    subject = call.data.replace("sub_", "")
+    user = call.from_user
+
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO club_requests (user_id, subject) VALUES (?, ?)", (user.id, subject))
     conn.commit()
     conn.close()
 
-    bot.send_message(
-        message.chat.id,
+    bot.answer_callback_query(call.id, text="Arizangiz qabul qilindi!")
+    bot.edit_message_text(
         f"✅ **Arizangiz qabul qilindi!**\n\n`{subject}` bo'yicha etarli o'quvchilar yig'ilgach, sizga xabar beramiz.",
+        call.message.chat.id,
+        call.message.message_id,
         parse_mode="Markdown"
     )
-    
-    # Adminga xabar (Profilga link bilan)
+
     if ADMIN_ID != 0:
         user_link = f"[{user.first_name}](tg://user?id={user.id})"
-        username_str = f"@{user.username}" if user.username else "Username yo'q"
         bot.send_message(
             ADMIN_ID,
-            f"📥 **Yangi to'garak arizasi!**\n\n📚 **Fan:** {subject}\n👤 **O'quvchi:** {user_link} ({username_str})\n🆔 **ID:** `{user.id}`\n\n🔍 *Ma'lumotlarini olish uchun:* `/info {user.id}`",
+            f"📥 **Yangi to'garak arizasi!**\n\n📚 **Fan:** {subject}\n👤 **O'quvchi:** {user_link}\n🆔 **ID:** `{user.id}`\n\n🔍 *Ma'lumotlarini ko'rish:* `/info {user.id}`",
             parse_mode="Markdown"
         )
 
@@ -245,13 +260,13 @@ def process_idea(message):
     conn.commit()
     conn.close()
 
-    bot.send_message(message.chat.id, "💡 **Ajoyib taklif uchun rahmat!** G'oyangiz liderlar bilan muhokama qilinadi.")
-    
+    bot.send_message(message.chat.id, "💡 **Ajoyib taklif uchun rahmat!** G'oyangiz ko'rib chiqiladi.")
+
     if ADMIN_ID != 0:
         user_link = f"[{user.first_name}](tg://user?id={user.id})"
         bot.send_message(
             ADMIN_ID,
-            f"💡 **Yangi taklif tushdi!**\n\n👤 **Kimdan:** {user_link}\n🆔 **ID:** `{user.id}`\n\n💬 **Taklif:** {idea_text}",
+            f"💡 **Yangi taklif:**\n\n👤 **Kimdan:** {user_link}\n🆔 **ID:** `{user.id}`\n\n💬 {idea_text}",
             parse_mode="Markdown"
         )
 
@@ -272,12 +287,12 @@ def process_question(message):
     conn.close()
 
     bot.send_message(message.chat.id, "❓ **Savolingiz yuborildi.** Tezbora javob olasiz!")
-    
+
     if ADMIN_ID != 0:
         user_link = f"[{user.first_name}](tg://user?id={user.id})"
         bot.send_message(
             ADMIN_ID,
-            f"❓ **Yangi savol:**\n\n👤 **Kimdan:** {user_link}\n🆔 **ID:** `{user.id}`\n💬 **Savol:** {q_text}\n\n📩 *Javob berish uchun:* `/reply {user.id} Javobingiz`",
+            f"❓ **Yangi savol:**\n\n👤 **Kimdan:** {user_link}\n🆔 **ID:** `{user.id}`\n💬 {q_text}\n\n📩 *Javob berish:* `/reply {user.id} Javob`",
             parse_mode="Markdown"
         )
 
@@ -293,18 +308,18 @@ def it_club_request(message):
 
     bot.send_message(
         message.chat.id,
-        "🚀 **IT-Klub va Liderlar jamoasiga hush kelibsiz!**\n\nArizangiz qabul qilindi. Tez orada IT-Lider siz bilan bog'lanadi!",
+        "🚀 **IT-Klub va Liderlar jamoasiga xush kelibsiz!**\n\nArizangiz qabul qilindi. Tez orada siz bilan bog'lanamiz!",
         parse_mode="Markdown"
     )
     if ADMIN_ID != 0:
         user_link = f"[{user.first_name}](tg://user?id={user.id})"
         bot.send_message(
             ADMIN_ID,
-            f"🚀 **IT-Klubga yangi nomzod!**\n\n👤 **Nomzod:** {user_link}\n🆔 **ID:** `{user.id}`\n\n🔍 *Ma'lumotlarini ko'rish:* `/info {user.id}`",
+            f"🚀 **IT-Klubga yangi nomzod!**\n\n👤 **Nomzod:** {user_link}\n🆔 **ID:** `{user.id}`\n🔍 `/info {user.id}`",
             parse_mode="Markdown"
         )
 
-# --- ADMIN BUYRUQLARI ---
+# --- ADMIN PANEL BUYRUQLARI ---
 
 @bot.message_handler(commands=["admin"])
 def admin_panel(message):
@@ -326,7 +341,7 @@ def back_to_main(message):
 def show_stats(message):
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    
+
     users_count = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     clubs_count = cursor.execute("SELECT COUNT(*) FROM club_requests").fetchone()[0]
     ideas_count = cursor.execute("SELECT COUNT(*) FROM ideas").fetchone()[0]
@@ -344,23 +359,58 @@ def show_stats(message):
     )
     bot.send_message(message.chat.id, msg_text, parse_mode="Markdown")
 
-# 📚 To'garaklar Ro'yxati (Guruhlangan)
+# 📚 To'garaklar Ro'yxati (Batafsil Kimlar Yozilgani Bilan)
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garaklar ro'yxati" and msg.from_user.id == ADMIN_ID)
 def show_clubs_summary(message):
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT subject, COUNT(*) FROM club_requests GROUP BY subject ORDER BY COUNT(*) DESC")
+    cursor.execute("""
+        SELECT club_requests.subject, users.full_name, users.grade, users.user_id 
+        FROM club_requests 
+        LEFT JOIN users ON club_requests.user_id = users.user_id
+    """)
     rows = cursor.fetchall()
     conn.close()
 
     if not rows:
-        bot.send_message(message.chat.id, "Hali to'garak xohlovchilar yo'q.")
+        bot.send_message(message.chat.id, "Hozircha to'garakka arizalar yo'q.")
         return
 
-    res_text = "📚 **TO'GARAKLAR BO'YICHA TALAB:**\n\n"
-    for subject, count in rows:
-        res_text += f"🔹 **{subject}:** `{count}` ta o'quvchi\n"
+    # Fanlar bo'yicha guruhlash
+    clubs_dict = {}
+    for subject, name, grade, uid in rows:
+        if subject not in clubs_dict:
+            clubs_dict[subject] = []
+        student_info = f"{name or 'Noma`lum'} ({grade or 'Sinf yo`q'}) - ID: `{uid}`"
+        clubs_dict[subject].append(student_info)
 
+    res_text = "📚 **TO'GARAKLAR BO'YICHA O'QUVCHILAR:**\n\n"
+    for subject, students in clubs_dict.items():
+        res_text += f"🔹 **{subject}** ({len(students)} kishi):\n"
+        for st in students:
+            res_text += f"   • {st}\n"
+        res_text += "\n"
+
+    bot.send_message(message.chat.id, res_text, parse_mode="Markdown")
+
+# 👥 Barcha O'quvchilar Ro'yxati
+@bot.message_handler(func=lambda msg: msg.text == "👥 Barcha o'quvchilar" and msg.from_user.id == ADMIN_ID)
+def show_all_users(message):
+    conn = sqlite3.connect("school.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT full_name, grade, user_id FROM users")
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        bot.send_message(message.chat.id, "Hali hech kim ro'yxatdan o'tmagan.")
+        return
+
+    res_text = "👥 **RO'YXATDAN O'TGAN O'QUVCHILAR:**\n\n"
+    for name, grade, uid in rows:
+        res_text += f"👤 **{name}** ({grade}) ➡️ ID: `{uid}`\n"
+
+    res_text += "\n💡 *Ma'lumotlarini ko'rish uchun:* `/info ID`"
     bot.send_message(message.chat.id, res_text, parse_mode="Markdown")
 
 # 🚀 IT-Klub A'zolari
@@ -420,7 +470,7 @@ def reply_command(message):
         parts = message.text.split(" ", 2)
         target_id = int(parts[1])
         reply_msg = parts[2]
-        
+
         bot.send_message(target_id, f"📩 **Maktab Adminidan javob:**\n\n{reply_msg}", parse_mode="Markdown")
         bot.send_message(message.chat.id, "✅ Javob yuborildi!")
     except Exception:
