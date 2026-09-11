@@ -161,14 +161,14 @@ def start_cmd(message):
     if is_user_registered(user_id):
         bot.send_message(
             message.chat.id,
-            f"Salom, <b>{message.from_user.first_name}</b>! 🏫\n\n'Aqliy Maktab' botiga xush kelibsiz. Kerakli bo'limni tanlang:",
+            f"Salom, <b>{message.from_user.first_name}</b>! 🏫\n\n'297-Maktabning Aqlli' botiga xush kelibsiz. Kerakli bo'limni tanlang:",
             parse_mode="HTML",
             reply_markup=main_menu()
         )
     else:
         msg = bot.send_message(
             message.chat.id,
-            "🏫 <b>'Aqliy Maktab' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
+            "🏫 <b>'297-Maktabning Aqlli' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
             parse_mode="HTML"
         )
         bot.register_next_step_handler(msg, process_name_step)
