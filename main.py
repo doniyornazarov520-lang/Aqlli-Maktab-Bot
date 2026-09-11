@@ -145,22 +145,22 @@ def start_cmd(message):
     if is_user_registered(user_id):
         bot.send_message(
             message.chat.id,
-            f"Salom, **{message.from_user.first_name}**! 🏫\n\n'Aqliy Maktab' botiga xush kelibsiz. Kerakli bo'limni tanlang:",
-            parse_mode="Markdown",
+            f"Salom, <b>{message.from_user.first_name}</b>! 🏫\n\n'Aqliy Maktab' botiga xush kelibsiz. Kerakli bo'limni tanlang:",
+            parse_mode="HTML",
             reply_markup=main_menu()
         )
     else:
         msg = bot.send_message(
             message.chat.id,
-            "🏫 **'Aqliy Maktab' botiga xush kelibsiz!**\n\nRo'yxatdan o'tish uchun **Ism va Familiyangizni** kiriting:",
-            parse_mode="Markdown"
+            "🏫 <b>'Aqliy Maktab' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
+            parse_mode="HTML"
         )
         bot.register_next_step_handler(msg, process_name_step)
 
 def process_name_step(message):
     user_id = message.from_user.id
     user_data[user_id] = {'full_name': message.text.strip()}
-    msg = bot.send_message(message.chat.id, "Sinfingizni kiriting (Masalan: `9-A`):", parse_mode="Markdown")
+    msg = bot.send_message(message.chat.id, "Sinfingizni kiriting (Masalan: <code>9-A</code>):", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_grade_step)
 
 def process_grade_step(message):
@@ -195,16 +195,16 @@ def process_phone_step(message):
 
     bot.send_message(
         message.chat.id,
-        "✅ **Muvaffaqiyatli ro'yxatdan o'tdingiz!**",
-        parse_mode="Markdown",
+        "✅ <b>Muvaffaqiyatli ro'yxatdan o'tdingiz!</b>",
+        parse_mode="HTML",
         reply_markup=main_menu()
     )
 
     if ADMIN_ID != 0:
         bot.send_message(
             ADMIN_ID,
-            f"👤 **Yangi o'quvchi ro'yxatdan o'tdi:**\n\n📌 **Ism:** {full_name}\n🏫 **Sinf:** {grade}\n📞 **Tel:** `{phone}`\n🆔 **ID:** `{user_id}`",
-            parse_mode="Markdown"
+            f"👤 <b>Yangi o'quvchi ro'yxatdan o'tdi:</b>\n\n📌 <b>Ism:</b> {full_name}\n🏫 <b>Sinf:</b> {grade}\n📞 <b>Tel:</b> <code>{phone}</code>\n🆔 <b>ID:</b> <code>{user_id}</code>",
+            parse_mode="HTML"
         )
 
 # 1. To'garak
@@ -229,18 +229,17 @@ def callback_subject(call):
 
     bot.answer_callback_query(call.id, text="Arizangiz qabul qilindi!")
     bot.edit_message_text(
-        f"✅ **Arizangiz qabul qilindi!**\n\n`{subject}` bo'yicha etarli o'quvchilar yig'ilgach, sizga xabar beramiz.",
+        f"✅ <b>Arizangiz qabul qilindi!</b>\n\n<code>{subject}</code> bo'yicha etarli o'quvchilar yig'ilgach, sizga xabar beramiz.",
         call.message.chat.id,
         call.message.message_id,
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
     if ADMIN_ID != 0:
-        user_link = f"[{user.first_name}](tg://user?id={user.id})"
         bot.send_message(
             ADMIN_ID,
-            f"📥 **Yangi to'garak arizasi!**\n\n📚 **Fan:** {subject}\n👤 **O'quvchi:** {user_link}\n🆔 **ID:** `{user.id}`\n\n🔍 *Ma'lumotlarini ko'rish:* `/info {user.id}`",
-            parse_mode="Markdown"
+            f"📥 <b>Yangi to'garak arizasi!</b>\n\n📚 <b>Fan:</b> {subject}\n👤 <b>O'quvchi:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n\n🔍 <i>Ma'lumotlarini ko'rish:</i> <code>/info {user.id}</code>",
+            parse_mode="HTML"
         )
 
 # 2. Taklif
@@ -259,14 +258,13 @@ def process_idea(message):
     conn.commit()
     conn.close()
 
-    bot.send_message(message.chat.id, "💡 **Ajoyib taklif uchun rahmat!** G'oyangiz ko'rib chiqiladi.")
+    bot.send_message(message.chat.id, "💡 <b>Ajoyib taklif uchun rahmat!</b> G'oyangiz ko'rib chiqiladi.", parse_mode="HTML")
 
     if ADMIN_ID != 0:
-        user_link = f"[{user.first_name}](tg://user?id={user.id})"
         bot.send_message(
             ADMIN_ID,
-            f"💡 **Yangi taklif:**\n\n👤 **Kimdan:** {user_link}\n🆔 **ID:** `{user.id}`\n\n💬 {idea_text}",
-            parse_mode="Markdown"
+            f"💡 <b>Yangi taklif:</b>\n\n👤 <b>Kimdan:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n\n💬 {idea_text}",
+            parse_mode="HTML"
         )
 
 # 3. Savol
@@ -285,14 +283,13 @@ def process_question(message):
     conn.commit()
     conn.close()
 
-    bot.send_message(message.chat.id, "❓ **Savolingiz yuborildi.** Tezbora javob olasiz!")
+    bot.send_message(message.chat.id, "❓ <b>Savolingiz yuborildi.</b> Tez orada javob olasiz!", parse_mode="HTML")
 
     if ADMIN_ID != 0:
-        user_link = f"[{user.first_name}](tg://user?id={user.id})"
         bot.send_message(
             ADMIN_ID,
-            f"❓ **Yangi savol:**\n\n👤 **Kimdan:** {user_link}\n🆔 **ID:** `{user.id}`\n💬 {q_text}\n\n📩 *Javob berish:* `/reply {user.id} Javob`",
-            parse_mode="Markdown"
+            f"❓ <b>Yangi savol:</b>\n\n👤 <b>Kimdan:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n💬 {q_text}\n\n📩 <i>Javob berish:</i> <code>/reply {user.id} Javob</code>",
+            parse_mode="HTML"
         )
 
 # 4. IT-Klub
@@ -307,15 +304,14 @@ def it_club_request(message):
 
     bot.send_message(
         message.chat.id,
-        "🚀 **IT-Klub va Liderlar jamoasiga xush kelibsiz!**\n\nArizangiz qabul qilindi. Tez orada siz bilan bog'lanamiz!",
-        parse_mode="Markdown"
+        "🚀 <b>IT-Klub va Liderlar jamoasiga xush kelibsiz!</b>\n\nArizangiz qabul qilindi. Tez orada siz bilan bog'lanamiz!",
+        parse_mode="HTML"
     )
     if ADMIN_ID != 0:
-        user_link = f"[{user.first_name}](tg://user?id={user.id})"
         bot.send_message(
             ADMIN_ID,
-            f"🚀 **IT-Klubga yangi nomzod!**\n\n👤 **Nomzod:** {user_link}\n🆔 **ID:** `{user.id}`\n🔍 `/info {user.id}`",
-            parse_mode="Markdown"
+            f"🚀 <b>IT-Klubga yangi nomzod!</b>\n\n👤 <b>Nomzod:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n🔍 <code>/info {user.id}</code>",
+            parse_mode="HTML"
         )
 
 # --- ADMIN PANEL BUYRUQLARI ---
@@ -326,9 +322,9 @@ def admin_panel(message):
         return
     bot.send_message(
         message.chat.id,
-        "👨‍💻 **Admin Panelga xush kelibsiz!**\nKerakli bo'limni tanlang:",
+        "👨‍💻 <b>Admin Panelga xush kelibsiz!</b>\nKerakli bo'limni tanlang:",
         reply_markup=admin_menu(),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 @bot.message_handler(func=lambda msg: msg.text == "⬅️ Asosiy menyu" and msg.from_user.id == ADMIN_ID)
@@ -349,14 +345,14 @@ def show_stats(message):
     conn.close()
 
     msg_text = (
-        f"📊 **BOT STATISTIKASI**\n\n"
-        f"👤 Ro'yxatdan o'tganlar: `{users_count}` ta\n"
-        f"📚 To'garak arizalari: `{clubs_count}` ta\n"
-        f"💡 Taklif va g'oyalar: `{ideas_count}` ta\n"
-        f"❓ Savollar: `{questions_count}` ta\n"
-        f"🚀 IT-Klub nomzodlari: `{it_count}` ta"
+        f"📊 <b>BOT STATISTIKASI</b>\n\n"
+        f"👤 Ro'yxatdan o'tganlar: <code>{users_count}</code> ta\n"
+        f"📚 To'garak arizalari: <code>{clubs_count}</code> ta\n"
+        f"💡 Taklif va g'oyalar: <code>{ideas_count}</code> ta\n"
+        f"❓ Savollar: <code>{questions_count}</code> ta\n"
+        f"🚀 IT-Klub nomzodlari: <code>{it_count}</code> ta"
     )
-    bot.send_message(message.chat.id, msg_text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, msg_text, parse_mode="HTML")
 
 # 📚 To'garaklar Ro'yxati
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garaklar ro'yxati" and msg.from_user.id == ADMIN_ID)
@@ -379,17 +375,17 @@ def show_clubs_summary(message):
     for subject, name, grade, uid in rows:
         if subject not in clubs_dict:
             clubs_dict[subject] = []
-        student_info = f"{name or 'Noma`lum'} ({grade or 'Sinf yo`q'}) - ID: `{uid}`"
+        student_info = f"{name or 'Noma`lum'} ({grade or 'Sinf yo`q'}) - ID: <code>{uid}</code>"
         clubs_dict[subject].append(student_info)
 
-    res_text = "📚 **TO'GARAKLAR BO'YICHA O'QUVCHILAR:**\n\n"
+    res_text = "📚 <b>TO'GARAKLAR BO'YICHA O'QUVCHILAR:</b>\n\n"
     for subject, students in clubs_dict.items():
-        res_text += f"🔹 **{subject}** ({len(students)} kishi):\n"
+        res_text += f"🔹 <b>{subject}</b> ({len(students)} kishi):\n"
         for st in students:
             res_text += f"   • {st}\n"
         res_text += "\n"
 
-    bot.send_message(message.chat.id, res_text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, res_text, parse_mode="HTML")
 
 # 👥 Barcha O'quvchilar Ro'yxati
 @bot.message_handler(func=lambda msg: msg.text == "👥 Barcha o'quvchilar" and msg.from_user.id == ADMIN_ID)
@@ -404,12 +400,12 @@ def show_all_users(message):
         bot.send_message(message.chat.id, "Hali hech kim ro'yxatdan o'tmagan.")
         return
 
-    res_text = "👥 **RO'YXATDAN O'TGAN O'QUVCHILAR:**\n\n"
+    res_text = "👥 <b>RO'YXATDAN O'TGAN O'QUVCHILAR:</b>\n\n"
     for name, grade, uid in rows:
-        res_text += f"👤 **{name}** ({grade}) ➡️ ID: `{uid}`\n"
+        res_text += f"👤 <b>{name}</b> ({grade}) ➡️ ID: <code>{uid}</code>\n"
 
-    res_text += "\n💡 *Ma'lumotlarini ko'rish uchun:* `/info ID`"
-    bot.send_message(message.chat.id, res_text, parse_mode="Markdown")
+    res_text += "\n💡 <i>Ma'lumotlarini ko'rish uchun:</i> <code>/info ID</code>"
+    bot.send_message(message.chat.id, res_text, parse_mode="HTML")
 
 # 🚀 IT-Klub A'zolari
 @bot.message_handler(func=lambda msg: msg.text == "🚀 IT-Klub a'zolari" and msg.from_user.id == ADMIN_ID)
@@ -425,14 +421,14 @@ def show_it_members(message):
     conn.close()
 
     if not rows:
-        bot.send_message(message.chat.id, "IT-Klubga hali a'zolar yo'q.")
+        bot.send_message(message.chat.id, "IT-Klubga hali a me'yorida a'zolar yo'q.")
         return
 
-    res_text = "🚀 **IT-KLUB NOMZODLARI:**\n\n"
+    res_text = "🚀 <b>IT-KLUB NOMZODLARI:</b>\n\n"
     for name, grade, uid in rows:
-        res_text += f"👤 {name} ({grade}) - ID: `{uid}`\n"
+        res_text += f"👤 {name} ({grade}) - ID: <code>{uid}</code>\n"
 
-    bot.send_message(message.chat.id, res_text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, res_text, parse_mode="HTML")
 
 # 🔍 Foydalanuvchi ma'lumotlarini chiqarish (/info USER_ID)
 @bot.message_handler(commands=["info"])
@@ -440,16 +436,14 @@ def info_command(message):
     if message.from_user.id != ADMIN_ID:
         return
     
-    # Buyruqdan keyingi barcha belgilarni toza ajratib olamiz
     raw_text = message.text.replace("/info", "").strip()
     
-    # Agar bot username bilan yuborilgan bo'lsa (@botname bo'lsa)
     if raw_text.startswith("@"):
         parts = raw_text.split(maxsplit=1)
         raw_text = parts[1] if len(parts) > 1 else ""
 
     if not raw_text.isdigit():
-        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/info 8216291475`", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: <code>/info 8216291475</code>", parse_mode="HTML")
         return
 
     target_id = int(raw_text)
@@ -459,19 +453,20 @@ def info_command(message):
         if info:
             name, grade, phone, username = info
             username_str = f"@{username}" if (username and username != "Mavjud emas") else "Mavjud emas"
+            
             msg = (
-                f"👤 **O'QUVCHI MA'LUMOTLARI:**\n\n"
-                f"📌 **Ism-Familiya:** {name}\n"
-                f"🏫 **Sinf:** {grade}\n"
-                f"📞 **Tel:** `{phone}`\n"
-                f"🌐 **Username:** {username_str}\n"
-                f"🆔 **ID:** `{target_id}`"
+                f"👤 <b>O'QUVCHI MA'LUMOTLARI:</b>\n\n"
+                f"📌 <b>Ism-Familiya:</b> {name}\n"
+                f"🏫 <b>Sinf:</b> {grade}\n"
+                f"📞 <b>Tel:</b> <code>{phone}</code>\n"
+                f"🌐 <b>Username:</b> {username_str}\n"
+                f"🆔 <b>ID:</b> <code>{target_id}</code>"
             )
-            bot.send_message(message.chat.id, msg, parse_mode="Markdown")
+            bot.send_message(message.chat.id, msg, parse_mode="HTML")
         else:
-            bot.send_message(message.chat.id, f"❌ `{target_id}` ID'ga ega foydalanuvchi bazadan topilmadi.", parse_mode="Markdown")
+            bot.send_message(message.chat.id, f"❌ <code>{target_id}</code> ID'ga ega foydalanuvchi bazadan topilmadi.", parse_mode="HTML")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Xatolik yuz berdi: `{e}`", parse_mode="Markdown")
+        bot.send_message(message.chat.id, f"❌ Xatolik yuz berdi: <code>{e}</code>", parse_mode="HTML")
 
 # 📩 Javob yuborish (/reply USER_ID Javob)
 @bot.message_handler(commands=["reply"])
@@ -482,16 +477,16 @@ def reply_command(message):
     try:
         parts = message.text.strip().split(maxsplit=2)
         if len(parts) < 3:
-            bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/reply 8216291475 Javobingiz`", parse_mode="Markdown")
+            bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: <code>/reply 8216291475 Javobingiz</code>", parse_mode="HTML")
             return
 
         target_id = int(parts[1])
         reply_msg = parts[2]
 
-        bot.send_message(target_id, f"📩 **Maktab Adminidan javob:**\n\n{reply_msg}", parse_mode="Markdown")
+        bot.send_message(target_id, f"📩 <b>Maktab Adminidan javob:</b>\n\n{reply_msg}", parse_mode="HTML")
         bot.send_message(message.chat.id, "✅ Javob yuborildi!")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Xatolik: `{e}`", parse_mode="Markdown")
+        bot.send_message(message.chat.id, f"❌ Xatolik: <code>{e}</code>", parse_mode="HTML")
 
 # --- MAIN RUN ---
 if __name__ == "__main__":
