@@ -2,6 +2,7 @@ import os
 import sqlite3
 import threading
 import time
+from datetime import datetime
 from flask import Flask
 import telebot
 from telebot import types
@@ -9,6 +10,7 @@ from telebot import types
 # --- ENVIRONMENT VARIABLES ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))  # Yopiq kanal ID'si
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -95,6 +97,20 @@ def get_user_info(user_id):
     conn.close()
     return res
 
+def send_to_admin_and_channel(text):
+    """Xabarni bir vaqtning o'zida Admin hamda Yopiq Kanalga yuborish"""
+    if ADMIN_ID != 0:
+        try:
+            bot.send_message(ADMIN_ID, text, parse_mode="HTML")
+        except Exception as e:
+            print(f"Adminga yuborishda xato: {e}")
+
+    if CHANNEL_ID != 0:
+        try:
+            bot.send_message(CHANNEL_ID, text, parse_mode="HTML")
+        except Exception as e:
+            print(f"Kanalga yuborishda xato: {e}")
+
 # --- RENDER WEB SERVER ---
 @app.route("/")
 def home():
@@ -145,14 +161,14 @@ def start_cmd(message):
     if is_user_registered(user_id):
         bot.send_message(
             message.chat.id,
-            f"Salom, <b>{message.from_user.first_name}</b>! 🏫\n\n'297-Maktabning Aqlli' botiga xush kelibsiz. Kerakli bo'limni tanlang:",
+            f"Salom, <b>{message.from_user.first_name}</b>! 🏫\n\n'Aqliy Maktab' botiga xush kelibsiz. Kerakli bo'limni tanlang:",
             parse_mode="HTML",
             reply_markup=main_menu()
         )
     else:
         msg = bot.send_message(
             message.chat.id,
-            "🏫 <b>'297-Maktabning Aqlli' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
+            "🏫 <b>'Aqliy Maktab' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
             parse_mode="HTML"
         )
         bot.register_next_step_handler(msg, process_name_step)
@@ -200,12 +216,16 @@ def process_phone_step(message):
         reply_markup=main_menu()
     )
 
-    if ADMIN_ID != 0:
-        bot.send_message(
-            ADMIN_ID,
-            f"👤 <b>Yangi o'quvchi ro'yxatdan o'tdi:</b>\n\n📌 <b>Ism:</b> {full_name}\n🏫 <b>Sinf:</b> {grade}\n📞 <b>Tel:</b> <code>{phone}</code>\n🆔 <b>ID:</b> <code>{user_id}</code>",
-            parse_mode="HTML"
-        )
+    reg_msg = (
+        f"👤 <b>YANGI O'QUVCHI RO'YXATDAN O'TDI!</b>\n\n"
+        f"📌 <b>Ism:</b> {full_name}\n"
+        f"🏫 <b>Sinf:</b> {grade}\n"
+        f"📞 <b>Tel:</b> <code>{phone}</code>\n"
+        f"🌐 <b>Username:</b> @{username}\n"
+        f"🆔 <b>ID:</b> <code>{user_id}</code>\n\n"
+        f"#YangiOquvchi"
+    )
+    send_to_admin_and_channel(reg_msg)
 
 # 1. To'garak
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garakka yozilish")
@@ -219,11 +239,11 @@ def club_request(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("sub_"))
 def callback_subject(call):
     subject = call.data.replace("sub_", "")
-    user = call.from_user
+    user_id = call.from_user.id
 
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO club_requests (user_id, subject) VALUES (?, ?)", (user.id, subject))
+    cursor.execute("INSERT INTO club_requests (user_id, subject) VALUES (?, ?)", (user_id, subject))
     conn.commit()
     conn.close()
 
@@ -235,12 +255,24 @@ def callback_subject(call):
         parse_mode="HTML"
     )
 
-    if ADMIN_ID != 0:
-        bot.send_message(
-            ADMIN_ID,
-            f"📥 <b>Yangi to'garak arizasi!</b>\n\n📚 <b>Fan:</b> {subject}\n👤 <b>O'quvchi:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n\n🔍 <i>Ma'lumotlarini ko'rish:</i> <code>/info {user.id}</code>",
-            parse_mode="HTML"
-        )
+    info = get_user_info(user_id)
+    name = info[0] if info else call.from_user.first_name
+    grade = info[1] if info else "Noma'lum"
+    phone = info[2] if info else "Noma'lum"
+
+    tag_subject = subject.split()[-1].replace("(", "").replace(")", "")
+
+    ariza_msg = (
+        f"📥 <b>YANGI TO'GARAK ARIZASI!</b>\n\n"
+        f"📚 <b>Fan:</b> {subject}\n"
+        f"👤 <b>O'quvchi:</b> {name}\n"
+        f"🏫 <b>Sinf:</b> {grade}\n"
+        f"📞 <b>Tel:</b> <code>{phone}</code>\n"
+        f"🆔 <b>ID:</b> <code>{user_id}</code>\n\n"
+        f"🔍 <i>Ma'lumotlar:</i> <code>/info {user_id}</code>\n"
+        f"#{tag_subject} #Togarak"
+    )
+    send_to_admin_and_channel(ariza_msg)
 
 # 2. Taklif
 @bot.message_handler(func=lambda msg: msg.text == "💡 Maktab uchun taklif/g'oya")
@@ -250,22 +282,30 @@ def idea_request(message):
 
 def process_idea(message):
     idea_text = message.text.strip()
-    user = message.from_user
+    user_id = message.from_user.id
 
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO ideas (user_id, idea_text) VALUES (?, ?)", (user.id, idea_text))
+    cursor.execute("INSERT INTO ideas (user_id, idea_text) VALUES (?, ?)", (user_id, idea_text))
     conn.commit()
     conn.close()
 
     bot.send_message(message.chat.id, "💡 <b>Ajoyib taklif uchun rahmat!</b> G'oyangiz ko'rib chiqiladi.", parse_mode="HTML")
 
-    if ADMIN_ID != 0:
-        bot.send_message(
-            ADMIN_ID,
-            f"💡 <b>Yangi taklif:</b>\n\n👤 <b>Kimdan:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n\n💬 {idea_text}",
-            parse_mode="HTML"
-        )
+    info = get_user_info(user_id)
+    name = info[0] if info else message.from_user.first_name
+    grade = info[1] if info else "Noma'lum"
+    phone = info[2] if info else "Noma'lum"
+
+    taklif_msg = (
+        f"💡 <b>YANGI TAKLIF / G'OYA!</b>\n\n"
+        f"👤 <b>O'quvchi:</b> {name} ({grade})\n"
+        f"📞 <b>Tel:</b> <code>{phone}</code>\n"
+        f"🆔 <b>ID:</b> <code>{user_id}</code>\n\n"
+        f"💬 <b>Taklif:</b>\n{idea_text}\n\n"
+        f"#Taklif #Goya"
+    )
+    send_to_admin_and_channel(taklif_msg)
 
 # 3. Savol
 @bot.message_handler(func=lambda msg: msg.text == "❓ Savol yuborish")
@@ -275,30 +315,39 @@ def question_request(message):
 
 def process_question(message):
     q_text = message.text.strip()
-    user = message.from_user
+    user_id = message.from_user.id
 
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO questions (user_id, question_text) VALUES (?, ?)", (user.id, q_text))
+    cursor.execute("INSERT INTO questions (user_id, question_text) VALUES (?, ?)", (user_id, q_text))
     conn.commit()
     conn.close()
 
     bot.send_message(message.chat.id, "❓ <b>Savolingiz yuborildi.</b> Tez orada javob olasiz!", parse_mode="HTML")
 
-    if ADMIN_ID != 0:
-        bot.send_message(
-            ADMIN_ID,
-            f"❓ <b>Yangi savol:</b>\n\n👤 <b>Kimdan:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n💬 {q_text}\n\n📩 <i>Javob berish:</i> <code>/reply {user.id} Javob</code>",
-            parse_mode="HTML"
-        )
+    info = get_user_info(user_id)
+    name = info[0] if info else message.from_user.first_name
+    grade = info[1] if info else "Noma'lum"
+    phone = info[2] if info else "Noma'lum"
+
+    savol_msg = (
+        f"❓ <b>YANGI SAVOL!</b>\n\n"
+        f"👤 <b>O'quvchi:</b> {name} ({grade})\n"
+        f"📞 <b>Tel:</b> <code>{phone}</code>\n"
+        f"🆔 <b>ID:</b> <code>{user_id}</code>\n\n"
+        f"💬 <b>Savol:</b>\n{q_text}\n\n"
+        f"📩 <i>Javob berish:</i> <code>/reply {user_id} Javob</code>\n"
+        f"#Savol"
+    )
+    send_to_admin_and_channel(savol_msg)
 
 # 4. IT-Klub
 @bot.message_handler(func=lambda msg: msg.text == "🚀 IT-Klubga qo'shilish")
 def it_club_request(message):
-    user = message.from_user
+    user_id = message.from_user.id
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO it_club (user_id) VALUES (?)", (user.id,))
+    cursor.execute("INSERT INTO it_club (user_id) VALUES (?)", (user_id,))
     conn.commit()
     conn.close()
 
@@ -307,12 +356,22 @@ def it_club_request(message):
         "🚀 <b>IT-Klub va Liderlar jamoasiga xush kelibsiz!</b>\n\nArizangiz qabul qilindi. Tez orada siz bilan bog'lanamiz!",
         parse_mode="HTML"
     )
-    if ADMIN_ID != 0:
-        bot.send_message(
-            ADMIN_ID,
-            f"🚀 <b>IT-Klubga yangi nomzod!</b>\n\n👤 <b>Nomzod:</b> {user.first_name}\n🆔 <b>ID:</b> <code>{user.id}</code>\n🔍 <code>/info {user.id}</code>",
-            parse_mode="HTML"
-        )
+
+    info = get_user_info(user_id)
+    name = info[0] if info else message.from_user.first_name
+    grade = info[1] if info else "Noma'lum"
+    phone = info[2] if info else "Noma'lum"
+
+    it_msg = (
+        f"🚀 <b>IT-KLUBGA YANGI NOMZOD!</b>\n\n"
+        f"👤 <b>Nomzod:</b> {name}\n"
+        f"🏫 <b>Sinf:</b> {grade}\n"
+        f"📞 <b>Tel:</b> <code>{phone}</code>\n"
+        f"🆔 <b>ID:</b> <code>{user_id}</code>\n\n"
+        f"🔍 <i>Ma'lumotlar:</i> <code>/info {user_id}</code>\n"
+        f"#ITKlub #Liderlar"
+    )
+    send_to_admin_and_channel(it_msg)
 
 # --- ADMIN PANEL BUYRUQLARI ---
 
@@ -421,7 +480,7 @@ def show_it_members(message):
     conn.close()
 
     if not rows:
-        bot.send_message(message.chat.id, "IT-Klubga hali a me'yorida a'zolar yo'q.")
+        bot.send_message(message.chat.id, "IT-Klubga hali a'zolar yo'q.")
         return
 
     res_text = "🚀 <b>IT-KLUB NOMZODLARI:</b>\n\n"
