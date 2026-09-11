@@ -200,7 +200,6 @@ def process_phone_step(message):
         reply_markup=main_menu()
     )
 
-    # Adminga yangi ro'yxatdan o'tgan o'quvchi bildirishnomasi
     if ADMIN_ID != 0:
         bot.send_message(
             ADMIN_ID,
@@ -208,7 +207,7 @@ def process_phone_step(message):
             parse_mode="Markdown"
         )
 
-# 1. To'garak (Inline tugmalar orqali tanlash)
+# 1. To'garak
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garakka yozilish")
 def club_request(message):
     bot.send_message(
@@ -359,7 +358,7 @@ def show_stats(message):
     )
     bot.send_message(message.chat.id, msg_text, parse_mode="Markdown")
 
-# 📚 To'garaklar Ro'yxati (Batafsil Kimlar Yozilgani Bilan)
+# 📚 To'garaklar Ro'yxati
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garaklar ro'yxati" and msg.from_user.id == ADMIN_ID)
 def show_clubs_summary(message):
     conn = sqlite3.connect("school.db")
@@ -376,7 +375,6 @@ def show_clubs_summary(message):
         bot.send_message(message.chat.id, "Hozircha to'garakka arizalar yo'q.")
         return
 
-    # Fanlar bo'yicha guruhlash
     clubs_dict = {}
     for subject, name, grade, uid in rows:
         if subject not in clubs_dict:
@@ -442,11 +440,16 @@ def info_command(message):
     if message.from_user.id != ADMIN_ID:
         return
     try:
-        target_id = int(message.text.split(" ")[1])
+        parts = message.text.strip().split()
+        if len(parts) < 2:
+            bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/info 8216291475`", parse_mode="Markdown")
+            return
+
+        target_id = int(parts[1])
         info = get_user_info(target_id)
         if info:
             name, grade, phone, username = info
-            username_str = f"@{username}" if username != "Mavjud emas" else "Mavjud emas"
+            username_str = f"@{username}" if username and username != "Mavjud emas" else "Mavjud emas"
             msg = (
                 f"👤 **O'QUVCHI MA'LUMOTLARI:**\n\n"
                 f"📌 **Ism-Familiya:** {name}\n"
@@ -459,7 +462,7 @@ def info_command(message):
         else:
             bot.send_message(message.chat.id, "❌ Ushbu ID'ga ega foydalanuvchi topilmadi.")
     except Exception:
-        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/info 12345678`", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/info 8216291475`", parse_mode="Markdown")
 
 # 📩 Javob yuborish (/reply USER_ID Javob)
 @bot.message_handler(commands=["reply"])
@@ -467,14 +470,18 @@ def reply_command(message):
     if message.from_user.id != ADMIN_ID:
         return
     try:
-        parts = message.text.split(" ", 2)
+        parts = message.text.strip().split(maxsplit=2)
+        if len(parts) < 3:
+            bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/reply 8216291475 Javobingiz`", parse_mode="Markdown")
+            return
+
         target_id = int(parts[1])
         reply_msg = parts[2]
 
         bot.send_message(target_id, f"📩 **Maktab Adminidan javob:**\n\n{reply_msg}", parse_mode="Markdown")
         bot.send_message(message.chat.id, "✅ Javob yuborildi!")
     except Exception:
-        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/reply 12345678 Javobingiz`", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: `/reply 8216291475 Javobingiz`", parse_mode="Markdown")
 
 # --- MAIN RUN ---
 if __name__ == "__main__":
