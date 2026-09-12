@@ -2,7 +2,6 @@ import os
 import sqlite3
 import threading
 import time
-from datetime import datetime
 from flask import Flask
 import telebot
 from telebot import types
@@ -10,7 +9,7 @@ from telebot import types
 # --- ENVIRONMENT VARIABLES ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))  # Yopiq kanal ID'si
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -98,7 +97,6 @@ def get_user_info(user_id):
     return res
 
 def send_to_admin_and_channel(text):
-    """Xabarni bir vaqtning o'zida Admin hamda Yopiq Kanalga yuborish"""
     if ADMIN_ID != 0:
         try:
             bot.send_message(ADMIN_ID, text, parse_mode="HTML")
@@ -111,7 +109,7 @@ def send_to_admin_and_channel(text):
         except Exception as e:
             print(f"Kanalga yuborishda xato: {e}")
 
-# --- RENDER WEB SERVER ---
+# --- FLASK WEB SERVER ---
 @app.route("/")
 def home():
     return "Aqliy Maktab Bot Is Running!"
@@ -154,19 +152,16 @@ def subjects_inline_menu():
 
 user_data = {}
 
-# Foydalanuvchi holatlarini (state) tozalash va start jarayoni
+# --- SYSTEM COMMANDS ---
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    user_id = message.from_user.id
-    
-    # 1. Oldingi navbatdagi qadamlarni tozalaymiz
     bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
-    
-    # 2. Lug'atdagi vaqtincha ma'lumotlarni o'chiramiz
+    user_id = message.from_user.id
+
     if user_id in user_data:
         del user_data[user_id]
 
-    # 3. Agar foydalanuvchi ro'yxatdan o'tgan bo'lsa, to'g me'yori menyuni ko'rsatamiz
     if is_user_registered(user_id):
         bot.send_message(
             message.chat.id,
@@ -174,33 +169,46 @@ def send_welcome(message):
             reply_markup=main_menu()
         )
     else:
-        # Ro'yxatdan o'tmagan bo'lsa, ismini so'rab ro'yxatga olishni boshlaymiz
         msg = bot.send_message(
             message.chat.id,
             "Assalomu alaykum! Ro'yxatdan o'tish uchun Ism va Familiyangizni kiriting:"
         )
         bot.register_next_step_handler(msg, process_name_step)
 
+@bot.message_handler(commands=["admin"])
+def admin_panel(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    if message.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(
+        message.chat.id,
+        "👨‍💻 <b>Admin Panelga xush kelibsiz!</b>\nKerakli bo'limni tanlang:",
+        reply_markup=admin_menu(),
+        parse_mode="HTML"
+    )
+
+# --- REGISTRATION STEPS ---
+
 def process_name_step(message):
-    if message.text == "/start":
-        return send_welcome(message)
-        
+    if message.text and message.text.startswith("/"):
+        return handle_commands_in_step(message)
+
     user_id = message.from_user.id
     user_data[user_id] = {'full_name': message.text.strip()}
     msg = bot.send_message(message.chat.id, "Sinfingizni kiriting (Masalan: <code>9-A</code>):", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_grade_step)
 
 def process_grade_step(message):
-    if message.text == "/start":
-        return send_welcome(message)
-        
+    if message.text and message.text.startswith("/"):
+        return handle_commands_in_step(message)
+
     user_id = message.from_user.id
     user_data[user_id]['grade'] = message.text.strip()
-    
+
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     btn_phone = types.KeyboardButton("📱 Telefon raqamni yuborish", request_contact=True)
     markup.add(btn_phone)
-    
+
     msg = bot.send_message(
         message.chat.id,
         "Telefon raqamingizni pastdagi tugma orqali yuboring:",
@@ -209,17 +217,17 @@ def process_grade_step(message):
     bot.register_next_step_handler(msg, process_phone_step)
 
 def process_phone_step(message):
-    if message.text == "/start":
-        return send_welcome(message)
-        
+    if message.text and message.text.startswith("/"):
+        return handle_commands_in_step(message)
+
     user_id = message.from_user.id
     if message.contact:
         phone = message.contact.phone_number
     else:
         phone = message.text.strip()
 
-    full_name = user_data[user_id]['full_name']
-    grade = user_data[user_id]['grade']
+    full_name = user_data.get(user_id, {}).get('full_name', message.from_user.first_name)
+    grade = user_data.get(user_id, {}).get('grade', 'Noma`lum')
     username = message.from_user.username or "Mavjud emas"
 
     save_user(user_id, full_name, grade, phone, username)
@@ -244,9 +252,18 @@ def process_phone_step(message):
     )
     send_to_admin_and_channel(reg_msg)
 
-# 1. To'garak
+def handle_commands_in_step(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    if message.text == "/start":
+        return send_welcome(message)
+    elif message.text == "/admin":
+        return admin_panel(message)
+
+# --- MAIN HANDLERS ---
+
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garakka yozilish")
 def club_request(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     bot.send_message(
         message.chat.id,
         "Qaysi fan bo'yicha to'garakka qatnashmoqchisiz? Quyidagi ro'yxatdan tanlang:",
@@ -291,15 +308,15 @@ def callback_subject(call):
     )
     send_to_admin_and_channel(ariza_msg)
 
-# 2. Taklif
 @bot.message_handler(func=lambda msg: msg.text == "💡 Maktab uchun taklif/g'oya")
 def idea_request(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     msg = bot.send_message(message.chat.id, "Maktabimizni yanada rivojlantirish bo'yicha o'z g'oyangizni yozib qoldiring:")
     bot.register_next_step_handler(msg, process_idea)
 
 def process_idea(message):
-    if message.text == "/start":
-        return send_welcome(message)
+    if message.text and message.text.startswith("/"):
+        return handle_commands_in_step(message)
 
     idea_text = message.text.strip()
     user_id = message.from_user.id
@@ -327,15 +344,15 @@ def process_idea(message):
     )
     send_to_admin_and_channel(taklif_msg)
 
-# 3. Savol
 @bot.message_handler(func=lambda msg: msg.text == "❓ Savol yuborish")
 def question_request(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     msg = bot.send_message(message.chat.id, "O'zingizni qiziqtirgan savolni yozing:")
     bot.register_next_step_handler(msg, process_question)
 
 def process_question(message):
-    if message.text == "/start":
-        return send_welcome(message)
+    if message.text and message.text.startswith("/"):
+        return handle_commands_in_step(message)
 
     q_text = message.text.strip()
     user_id = message.from_user.id
@@ -364,9 +381,9 @@ def process_question(message):
     )
     send_to_admin_and_channel(savol_msg)
 
-# 4. IT-Klub
 @bot.message_handler(func=lambda msg: msg.text == "🚀 IT-Klubga qo'shilish")
 def it_club_request(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     user_id = message.from_user.id
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
@@ -396,24 +413,13 @@ def it_club_request(message):
     )
     send_to_admin_and_channel(it_msg)
 
-# --- ADMIN PANEL BUYRUQLARI ---
-
-@bot.message_handler(commands=["admin"])
-def admin_panel(message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    bot.send_message(
-        message.chat.id,
-        "👨‍💻 <b>Admin Panelga xush kelibsiz!</b>\nKerakli bo'limni tanlang:",
-        reply_markup=admin_menu(),
-        parse_mode="HTML"
-    )
+# --- ADMIN FUNCTIONS ---
 
 @bot.message_handler(func=lambda msg: msg.text == "⬅️ Asosiy menyu" and msg.from_user.id == ADMIN_ID)
 def back_to_main(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     bot.send_message(message.chat.id, "Asosiy menyu:", reply_markup=main_menu())
 
-# 📊 Statistika
 @bot.message_handler(func=lambda msg: msg.text == "📊 Statistika" and msg.from_user.id == ADMIN_ID)
 def show_stats(message):
     conn = sqlite3.connect("school.db")
@@ -436,7 +442,6 @@ def show_stats(message):
     )
     bot.send_message(message.chat.id, msg_text, parse_mode="HTML")
 
-# 📚 To'garaklar Ro'yxati
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garaklar ro'yxati" and msg.from_user.id == ADMIN_ID)
 def show_clubs_summary(message):
     conn = sqlite3.connect("school.db")
@@ -469,7 +474,6 @@ def show_clubs_summary(message):
 
     bot.send_message(message.chat.id, res_text, parse_mode="HTML")
 
-# 👥 Barcha O'quvchilar Ro'yxati
 @bot.message_handler(func=lambda msg: msg.text == "👥 Barcha o'quvchilar" and msg.from_user.id == ADMIN_ID)
 def show_all_users(message):
     conn = sqlite3.connect("school.db")
@@ -489,7 +493,6 @@ def show_all_users(message):
     res_text += "\n💡 <i>Ma'lumotlarini ko'rish uchun:</i> <code>/info ID</code>"
     bot.send_message(message.chat.id, res_text, parse_mode="HTML")
 
-# 🚀 IT-Klub A'zolari
 @bot.message_handler(func=lambda msg: msg.text == "🚀 IT-Klub a'zolari" and msg.from_user.id == ADMIN_ID)
 def show_it_members(message):
     conn = sqlite3.connect("school.db")
@@ -512,47 +515,38 @@ def show_it_members(message):
 
     bot.send_message(message.chat.id, res_text, parse_mode="HTML")
 
-# 🔍 Foydalanuvchi ma'lumotlarini chiqarish (/info USER_ID)
 @bot.message_handler(commands=["info"])
 def info_command(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     if message.from_user.id != ADMIN_ID:
         return
     
     raw_text = message.text.replace("/info", "").strip()
-    
-    if raw_text.startswith("@"):
-        parts = raw_text.split(maxsplit=1)
-        raw_text = parts[1] if len(parts) > 1 else ""
-
     if not raw_text.isdigit():
         bot.send_message(message.chat.id, "⚠️ Buyruqdan foydalanish: <code>/info 8216291475</code>", parse_mode="HTML")
         return
 
     target_id = int(raw_text)
-    
-    try:
-        info = get_user_info(target_id)
-        if info:
-            name, grade, phone, username = info
-            username_str = f"@{username}" if (username and username != "Mavjud emas") else "Mavjud emas"
-            
-            msg = (
-                f"👤 <b>O'QUVCHI MA'LUMOTLARI:</b>\n\n"
-                f"📌 <b>Ism-Familiya:</b> {name}\n"
-                f"🏫 <b>Sinf:</b> {grade}\n"
-                f"📞 <b>Tel:</b> <code>{phone}</code>\n"
-                f"🌐 <b>Username:</b> {username_str}\n"
-                f"🆔 <b>ID:</b> <code>{target_id}</code>"
-            )
-            bot.send_message(message.chat.id, msg, parse_mode="HTML")
-        else:
-            bot.send_message(message.chat.id, f"❌ <code>{target_id}</code> ID'ga ega foydalanuvchi bazadan topilmadi.", parse_mode="HTML")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Xatolik yuz berdi: <code>{e}</code>", parse_mode="HTML")
+    info = get_user_info(target_id)
+    if info:
+        name, grade, phone, username = info
+        username_str = f"@{username}" if (username and username != "Mavjud emas") else "Mavjud emas"
+        
+        msg = (
+            f"👤 <b>O'QUVCHI MA'LUMOTLARI:</b>\n\n"
+            f"📌 <b>Ism-Familiya:</b> {name}\n"
+            f"🏫 <b>Sinf:</b> {grade}\n"
+            f"📞 <b>Tel:</b> <code>{phone}</code>\n"
+            f"🌐 <b>Username:</b> {username_str}\n"
+            f"🆔 <b>ID:</b> <code>{target_id}</code>"
+        )
+        bot.send_message(message.chat.id, msg, parse_mode="HTML")
+    else:
+        bot.send_message(message.chat.id, f"❌ <code>{target_id}</code> ID'ga ega foydalanuvchi bazadan topilmadi.", parse_mode="HTML")
 
-# 📩 Javob yuborish (/reply USER_ID Javob)
 @bot.message_handler(commands=["reply"])
 def reply_command(message):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     if message.from_user.id != ADMIN_ID:
         return
     
@@ -570,19 +564,17 @@ def reply_command(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Xatolik: <code>{e}</code>", parse_mode="HTML")
 
-# --- MAIN RUN ---
+# --- MAIN RUNNER ---
 if __name__ == "__main__":
-    # 1. Serverni fonga (threading) o'tkazamiz
     t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
     
     print("Aqliy Maktab Bot ishga tushdi...")
     
-    # 2. Telegram Polling'ni cheksiz tsikl va xatoliklarni ushlash bilan yurgizamiz
     while True:
         try:
             bot.polling(non_stop=True, timeout=60, long_polling_timeout=60)
         except Exception as e:
-            print(f"Polling xatosi: {e}")
+            print(f"Polling error: {e}")
             time.sleep(5)
