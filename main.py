@@ -156,7 +156,7 @@ user_data = {}
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     user_id = message.from_user.id
 
     if user_id in user_data:
@@ -177,7 +177,7 @@ def send_welcome(message):
 
 @bot.message_handler(commands=["admin"])
 def admin_panel(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     if message.from_user.id != ADMIN_ID:
         return
     bot.send_message(
@@ -253,7 +253,7 @@ def process_phone_step(message):
     send_to_admin_and_channel(reg_msg)
 
 def handle_commands_in_step(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     if message.text == "/start":
         return send_welcome(message)
     elif message.text == "/admin":
@@ -263,7 +263,7 @@ def handle_commands_in_step(message):
 
 @bot.message_handler(func=lambda msg: msg.text == "📚 To'garakka yozilish")
 def club_request(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     bot.send_message(
         message.chat.id,
         "Qaysi fan bo'yicha to'garakka qatnashmoqchisiz? Quyidagi ro'yxatdan tanlang:",
@@ -310,7 +310,7 @@ def callback_subject(call):
 
 @bot.message_handler(func=lambda msg: msg.text == "💡 Maktab uchun taklif/g'oya")
 def idea_request(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     msg = bot.send_message(message.chat.id, "Maktabimizni yanada rivojlantirish bo'yicha o'z g'oyangizni yozib qoldiring:")
     bot.register_next_step_handler(msg, process_idea)
 
@@ -346,7 +346,7 @@ def process_idea(message):
 
 @bot.message_handler(func=lambda msg: msg.text == "❓ Savol yuborish")
 def question_request(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     msg = bot.send_message(message.chat.id, "O'zingizni qiziqtirgan savolni yozing:")
     bot.register_next_step_handler(msg, process_question)
 
@@ -383,7 +383,7 @@ def process_question(message):
 
 @bot.message_handler(func=lambda msg: msg.text == "🚀 IT-Klubga qo'shilish")
 def it_club_request(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     user_id = message.from_user.id
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
@@ -417,7 +417,7 @@ def it_club_request(message):
 
 @bot.message_handler(func=lambda msg: msg.text == "⬅️ Asosiy menyu" and msg.from_user.id == ADMIN_ID)
 def back_to_main(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     bot.send_message(message.chat.id, "Asosiy menyu:", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda msg: msg.text == "📊 Statistika" and msg.from_user.id == ADMIN_ID)
@@ -517,7 +517,7 @@ def show_it_members(message):
 
 @bot.message_handler(commands=["info"])
 def info_command(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     if message.from_user.id != ADMIN_ID:
         return
     
@@ -546,7 +546,7 @@ def info_command(message):
 
 @bot.message_handler(commands=["reply"])
 def reply_command(message):
-    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     if message.from_user.id != ADMIN_ID:
         return
     
@@ -566,17 +566,15 @@ def reply_command(message):
 
 # --- MAIN RUNNER ---
 if __name__ == "__main__":
-    # 1. Flask veb-serverini alohida fonga (thread) o'tkazamiz
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.daemon = True
-    flask_thread.start()
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
     
     print("Aqliy Maktab Bot ishga tushdi...")
     
-    # 2. Telegram Polling funksiyasini to'g'ri ishga tushiramiz
     while True:
         try:
-            bot.infinity_polling(timeout=10, long_polling_timeout=5)
+            bot.polling(non_stop=True, timeout=60, long_polling_timeout=60)
         except Exception as e:
-            print(f"Polling xatosi: {e}")
-            time.sleep(3)
+            print(f"Polling error: {e}")
+            time.sleep(5)
