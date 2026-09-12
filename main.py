@@ -154,34 +154,46 @@ def subjects_inline_menu():
 
 user_data = {}
 
-# Foydalanuvchi holatlarini (state) tozalash uchun
+# Foydalanuvchi holatlarini (state) tozalash va start jarayoni
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = message.from_user.id
     
-    # 1. Agar foydalanuvchi ro'yxatdan o'tish jarayonida bo'lsa, uni bekor qilamiz
-    # (Agar telebot'ning clear_step_handlers funksiyasidan foydalanayotgan bo'lsangiz):
+    # 1. Oldingi navbatdagi qadamlarni tozalaymiz
     bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
     
-    # 2. Agar foydalanuvchi holatini lug'atda (user_data/states) saqlayotgan bo'lsangiz:
+    # 2. Lug'atdagi vaqtincha ma'lumotlarni o'chiramiz
     if user_id in user_data:
-        del user_data[user_id] # Vaqtincha kiritilgan chala ma'lumotni o'chirib tashlaymiz
+        del user_data[user_id]
 
-    # 3. Odatiy salomlashish va bosh menyuni ko'rsatish
-    bot.send_message(
-        message.chat.id,
-        "Assalomu alaykum! 297-maktabning aqlli murojaat botiga xush kelibsiz.",
-        reply_markup=main_menu_keyboard() # Bosh menyu tugmalaringiz
-    )
+    # 3. Agar foydalanuvchi ro'yxatdan o'tgan bo'lsa, to'g me'yori menyuni ko'rsatamiz
+    if is_user_registered(user_id):
+        bot.send_message(
+            message.chat.id,
+            "Assalomu alaykum! 297-maktabning aqlli murojaat botiga xush kelibsiz.",
+            reply_markup=main_menu()
+        )
+    else:
+        # Ro'yxatdan o'tmagan bo'lsa, ismini so'rab ro'yxatga olishni boshlaymiz
+        msg = bot.send_message(
+            message.chat.id,
+            "Assalomu alaykum! Ro'yxatdan o'tish uchun Ism va Familiyangizni kiriting:"
+        )
         bot.register_next_step_handler(msg, process_name_step)
 
 def process_name_step(message):
+    if message.text == "/start":
+        return send_welcome(message)
+        
     user_id = message.from_user.id
     user_data[user_id] = {'full_name': message.text.strip()}
     msg = bot.send_message(message.chat.id, "Sinfingizni kiriting (Masalan: <code>9-A</code>):", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_grade_step)
 
 def process_grade_step(message):
+    if message.text == "/start":
+        return send_welcome(message)
+        
     user_id = message.from_user.id
     user_data[user_id]['grade'] = message.text.strip()
     
@@ -197,6 +209,9 @@ def process_grade_step(message):
     bot.register_next_step_handler(msg, process_phone_step)
 
 def process_phone_step(message):
+    if message.text == "/start":
+        return send_welcome(message)
+        
     user_id = message.from_user.id
     if message.contact:
         phone = message.contact.phone_number
@@ -283,6 +298,9 @@ def idea_request(message):
     bot.register_next_step_handler(msg, process_idea)
 
 def process_idea(message):
+    if message.text == "/start":
+        return send_welcome(message)
+
     idea_text = message.text.strip()
     user_id = message.from_user.id
 
@@ -316,6 +334,9 @@ def question_request(message):
     bot.register_next_step_handler(msg, process_question)
 
 def process_question(message):
+    if message.text == "/start":
+        return send_welcome(message)
+
     q_text = message.text.strip()
     user_id = message.from_user.id
 
@@ -443,7 +464,7 @@ def show_clubs_summary(message):
     for subject, students in clubs_dict.items():
         res_text += f"🔹 <b>{subject}</b> ({len(students)} kishi):\n"
         for st in students:
-            res_text += f"   • {st}\n"
+            res_text += f"    • {st}\n"
         res_text += "\n"
 
     bot.send_message(message.chat.id, res_text, parse_mode="HTML")
