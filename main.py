@@ -154,23 +154,25 @@ def subjects_inline_menu():
 
 user_data = {}
 
-# --- USER HANDLERS ---
-@bot.message_handler(commands=["start"])
-def start_cmd(message):
+# Foydalanuvchi holatlarini (state) tozalash uchun
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
     user_id = message.from_user.id
-    if is_user_registered(user_id):
-        bot.send_message(
-            message.chat.id,
-            f"Salom, <b>{message.from_user.first_name}</b>! 🏫\n\n'297-Maktabning Aqlli' botiga xush kelibsiz. Kerakli bo'limni tanlang:",
-            parse_mode="HTML",
-            reply_markup=main_menu()
-        )
-    else:
-        msg = bot.send_message(
-            message.chat.id,
-            "🏫 <b>'297-Maktabning Aqlli' botiga xush kelibsiz!</b>\n\nRo'yxatdan o'tish uchun <b>Ism va Familiyangizni</b> kiriting:",
-            parse_mode="HTML"
-        )
+    
+    # 1. Agar foydalanuvchi ro'yxatdan o'tish jarayonida bo'lsa, uni bekor qilamiz
+    # (Agar telebot'ning clear_step_handlers funksiyasidan foydalanayotgan bo'lsangiz):
+    bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    
+    # 2. Agar foydalanuvchi holatini lug'atda (user_data/states) saqlayotgan bo'lsangiz:
+    if user_id in user_data:
+        del user_data[user_id] # Vaqtincha kiritilgan chala ma'lumotni o'chirib tashlaymiz
+
+    # 3. Odatiy salomlashish va bosh menyuni ko'rsatish
+    bot.send_message(
+        message.chat.id,
+        "Assalomu alaykum! 297-maktabning aqlli murojaat botiga xush kelibsiz.",
+        reply_markup=main_menu_keyboard() # Bosh menyu tugmalaringiz
+    )
         bot.register_next_step_handler(msg, process_name_step)
 
 def process_name_step(message):
