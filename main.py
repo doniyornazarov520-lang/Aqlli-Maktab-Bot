@@ -566,15 +566,17 @@ def reply_command(message):
 
 # --- MAIN RUNNER ---
 if __name__ == "__main__":
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
+    # 1. Flask veb-serverini alohida fonga (thread) o'tkazamiz
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
     
     print("Aqliy Maktab Bot ishga tushdi...")
     
+    # 2. Telegram Polling funksiyasini to'g'ri ishga tushiramiz
     while True:
         try:
-            bot.polling(non_stop=True, timeout=60, long_polling_timeout=60)
+            bot.infinity_polling(timeout=10, long_polling_timeout=5)
         except Exception as e:
-            print(f"Polling error: {e}")
-            time.sleep(5)
+            print(f"Polling xatosi: {e}")
+            time.sleep(3)
